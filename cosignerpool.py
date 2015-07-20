@@ -17,15 +17,15 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-import time, thread, sys, socket, os, re
-import urllib2,json
+import thread, sys, socket, os, re
+import urllib2
 import Queue
 import traceback
 import plyvel
-
-from electrum import Wallet, Interface, SimpleConfig
-
+import json, ast
+import time
 import ConfigParser
+
 config = ConfigParser.ConfigParser()
 config.read("/etc/cosignerpool.conf")
 my_password = config.get('main','password')
@@ -34,20 +34,9 @@ my_port = config.getint('main','port')
 dbpath = config.get('main', 'dbpath')
 
 
-import json, ast
-import hmac, base64, struct, hashlib, time
-import electrum.bitcoin as bitcoin
-import electrum.transaction as transaction
-import electrum
-
-electrum.util.set_verbosity(1)
-
-requests = {}
-
-
 def run_server():
     from SimpleXMLRPCServer import SimpleXMLRPCServer
-    server = SimpleXMLRPCServer((my_host, my_port), allow_none=True, logRequests=True)
+    server = SimpleXMLRPCServer((my_host, my_port), allow_none=True, logRequests=False)
     server.register_function(delete, 'delete')
     server.register_function(get, 'get')
     server.register_function(put, 'put')
@@ -55,14 +44,20 @@ def run_server():
     server.register_function(lambda: setattr(server,'running', False), 'stop')
     server.running = True
     while server.running:
-        server.handle_request()
+        try:
+            server.handle_request()
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+    print "server stopped"
 
 def get(key):
     o = db.get(key)
+    if o:
+        print "get", key, len(o)
     return o
 
 def put(key, value):
-    print key, value
+    print "put", key, len(value)
     db.put(key, value)
 
 def delete(key):
